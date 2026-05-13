@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 
 const AC = "#E8702C";
 const AC2 = "rgba(232,112,44,0.12)";
+const AC3 = "rgba(232,112,44,0.07)";
 const FF = "-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif";
 
 const PERIODS = [
@@ -29,10 +30,19 @@ const STEPS=[{id:"read",e:"📖",label:"Кітап оқыдым"},{id:"test",e:"
 const MATS=[{id:"video",e:"🎬",label:"Нұсқа талдау"},{id:"test",e:"📄",label:"Тест тапсырмалары"},{id:"checklist",e:"📋",label:"Чеклист файлдары"},{id:"other",e:"📌",label:"Басқа"}];
 const PB={high:{e:"🔥",label:"Жоғары",color:"#C05A00",bg:"rgba(232,112,44,0.13)"},mid:{e:"⚡",label:"Орташа",color:"#9A6F00",bg:"rgba(255,204,0,0.13)"},low:{e:"—",label:"Төмен",color:"#999",bg:"rgba(0,0,0,0.05)"}};
 
+const MY_CATS=[
+  {id:"nuska",e:"🎬",label:"Нұсқа талдаулар",color:"#E8702C",bg:"rgba(232,112,44,0.08)"},
+  {id:"test",e:"📄",label:"Тесттер",color:"#007AFF",bg:"rgba(0,122,255,0.08)"},
+  {id:"checklist",e:"📋",label:"Чеклисттер",color:"#1E8A3A",bg:"rgba(52,199,89,0.08)"},
+  {id:"other",e:"📌",label:"Басқа материалдар",color:"#8E44AD",bg:"rgba(142,68,173,0.08)"},
+];
+
 const def=()=>({level:null,steps:{},materials:{}});
+const defMy=()=>({nuska:[],test:[],checklist:[],other:[]});
 
 export default function App(){
   const [td,setTd]=useState({});
+  const [myMats,setMyMats]=useState(defMy());
   const [open,setOpen]=useState({p1:true});
   const [exp,setExp]=useState(null);
   const [lvF,setLvF]=useState("all");
@@ -43,18 +53,22 @@ export default function App(){
   const [addMat,setAddMat]=useState(null);
   const [mUrl,setMUrl]=useState("");
   const [mLbl,setMlbl]=useState("");
+  const [addMyMat,setAddMyMat]=useState(null);
+  const [myUrl,setMyUrl]=useState("");
+  const [myLbl,setMyLbl]=useState("");
   const tmr=useRef(null);
 
   useEffect(()=>{
     (async()=>{
       try{
-        const r=await window.storage.get("okysai_v3");
-        if(r){
-          const d=JSON.parse(r.value);
+        const raw=localStorage.getItem("okysai_v4");
+        if(raw){
+          const d=JSON.parse(raw);
           if(d.td)setTd(d.td);
           if(d.open)setOpen(d.open);
           if(d.ubt1)setUbt1(d.ubt1);
           if(d.ubt2)setUbt2(d.ubt2);
+          if(d.myMats)setMyMats(d.myMats);
         }
       }catch(e){}
       setReady(true);
@@ -64,16 +78,19 @@ export default function App(){
   useEffect(()=>{
     if(!ready)return;
     if(tmr.current)clearTimeout(tmr.current);
-    tmr.current=setTimeout(async()=>{
-      try{await window.storage.set("okysai_v3",JSON.stringify({td,open,ubt1,ubt2}));}catch(e){}
+    tmr.current=setTimeout(()=>{
+      try{localStorage.setItem("okysai_v4",JSON.stringify({td,open,ubt1,ubt2,myMats}));}catch(e){}
     },800);
-  },[td,open,ubt1,ubt2,ready]);
+  },[td,open,ubt1,ubt2,myMats,ready]);
 
   const upd=(id,fn)=>setTd(p=>{const c=p[id]||def();return{...p,[id]:fn(c)};});
   const setLv=(id,lv)=>upd(id,c=>({...c,level:c.level===lv?null:lv}));
   const togSt=(id,st)=>upd(id,c=>({...c,steps:{...c.steps,[st]:!c.steps?.[st]}}));
   const addM=(id,cat,url,lbl)=>upd(id,c=>{const ms=c.materials||{};return{...c,materials:{...ms,[cat]:[...(ms[cat]||[]),{url,lbl:lbl||url}]}};});
   const delM=(id,cat,i)=>upd(id,c=>{const ms={...c.materials};const a=[...(ms[cat]||[])];a.splice(i,1);return{...c,materials:{...ms,[cat]:a}};});
+
+  const addMyM=(cat,url,lbl)=>setMyMats(p=>({...p,[cat]:[...(p[cat]||[]),{url,lbl:lbl||url}]}));
+  const delMyM=(cat,i)=>setMyMats(p=>{const a=[...(p[cat]||[])];a.splice(i,1);return{...p,[cat]:a};});
 
   const days=ds=>{if(!ds)return null;const d=new Date(ds),n=new Date();n.setHours(0,0,0,0);d.setHours(0,0,0,0);return Math.ceil((d-n)/86400000);};
   const ptFor=p=>TOPICS.filter(([id])=>id>=p.from&&id<=p.to);
@@ -83,9 +100,7 @@ export default function App(){
   const totP=Math.round(totG/189*100);
   const d1=days(ubt1),d2=days(ubt2);
 
-  if(!ready){
-    return React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",color:"#8E8E93",fontFamily:FF}},"Жүктелуде...");
-  }
+  if(!ready) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",color:"#8E8E93",fontFamily:FF}}>Жүктелуде...</div>;
 
   return (
     <div style={{minHeight:"100vh",backgroundColor:"#F2F2F7",backgroundImage:"radial-gradient(rgba(0,0,0,0.09) 1px,transparent 1px)",backgroundSize:"22px 22px",paddingBottom:60,fontFamily:FF}}>
@@ -121,15 +136,11 @@ export default function App(){
           {[{label:"1-ші Нағыз ҰБТ",val:ubt1,set:setUbt1,d:d1},{label:"2-ші Нағыз ҰБТ",val:ubt2,set:setUbt2,d:d2}].map((u,i)=>(
             <div key={i} style={{background:"#fff",borderRadius:18,padding:"12px 14px",boxShadow:"0 1px 8px rgba(0,0,0,0.07)"}}>
               <div style={{fontSize:9,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:0.6,marginBottom:4}}>{u.label}</div>
-              {u.val&&u.d!==null?(
-                <div>
-                  <div style={{fontSize:28,fontWeight:800,color:u.d<=7?"#FF3B30":AC,lineHeight:1}}>{u.d}</div>
-                  <div style={{fontSize:11,color:"#8E8E93"}}>күн қалды</div>
-                  <div style={{fontSize:10,color:"#C7C7CC"}}>{new Date(u.val).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}</div>
-                </div>
-              ):(
-                <div style={{fontSize:11,color:"#C7C7CC",margin:"6px 0 4px"}}>Күн таңдаңыз:</div>
-              )}
+              {u.val&&u.d!==null?(<div>
+                <div style={{fontSize:28,fontWeight:800,color:u.d<=7?"#FF3B30":AC,lineHeight:1}}>{u.d}</div>
+                <div style={{fontSize:11,color:"#8E8E93"}}>күн қалды</div>
+                <div style={{fontSize:10,color:"#C7C7CC"}}>{new Date(u.val).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}</div>
+              </div>):(<div style={{fontSize:11,color:"#C7C7CC",margin:"6px 0 4px"}}>Күн таңдаңыз:</div>)}
               <input type="date" value={u.val} onChange={e=>u.set(e.target.value)}
                 style={{marginTop:6,width:"100%",padding:"5px 6px",borderRadius:8,border:`1px solid ${AC2}`,fontSize:11,color:AC,fontWeight:600,background:"#FFF8F4",boxSizing:"border-box",outline:"none",cursor:"pointer",fontFamily:FF}}/>
             </div>
@@ -143,13 +154,10 @@ export default function App(){
             {LVF.map(f=>{
               const cnt=f.id==="all"?189:TOPICS.filter(([id])=>(td[id]?.level||null)===f.id).length;
               const active=lvF===f.id;
-              return (
-                <button key={f.id} onClick={()=>setLvF(active&&f.id!=="all"?"all":f.id)}
-                  style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
-                  <span>{f.e?f.e+" ":""}{f.label}</span>
-                  <span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
-                </button>
-              );
+              return <button key={f.id} onClick={()=>setLvF(active&&f.id!=="all"?"all":f.id)}
+                style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
+                <span>{f.e?f.e+" ":""}{f.label}</span><span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
+              </button>;
             })}
           </div>
         </div>
@@ -162,13 +170,10 @@ export default function App(){
             {PRF.map(f=>{
               const cnt=f.id==="all"?189:TOPICS.filter(([id])=>gp(id)===f.id).length;
               const active=prF===f.id;
-              return (
-                <button key={f.id} onClick={()=>setPrF(active&&f.id!=="all"?"all":f.id)}
-                  style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
-                  <span>{f.e?f.e+" ":""}{f.label}</span>
-                  <span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
-                </button>
-              );
+              return <button key={f.id} onClick={()=>setPrF(active&&f.id!=="all"?"all":f.id)}
+                style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
+                <span>{f.e?f.e+" ":""}{f.label}</span><span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
+              </button>;
             })}
           </div>
         </div>
@@ -207,13 +212,30 @@ export default function App(){
                       const pb=PB[gp(id)];
                       const sd=STEPS.filter(s=>t.steps?.[s.id]).length;
                       return (
-                        <div key={id}>
-                          {idx>0&&<div style={{height:1,background:"#F2F2F7",marginLeft:56}}/>}
+                        <div key={id} style={{
+                          background: isE ? "linear-gradient(135deg,rgba(232,112,44,0.06),rgba(232,112,44,0.02))" : "transparent",
+                          borderLeft: isE ? `3px solid ${AC}` : "3px solid transparent",
+                          transition:"all 0.2s ease",
+                        }}>
+                          {idx>0&&!isE&&<div style={{height:1,background:"#F2F2F7",marginLeft:56}}/>}
+
+                          {/* TOPIC ROW */}
                           <button onClick={()=>setExp(isE?null:id)}
-                            style={{width:"100%",padding:"11px 14px",border:"none",cursor:"pointer",background:isE?"#FFF8F4":"#fff",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF}}>
-                            <div style={{width:34,height:34,borderRadius:9,background:lv?lv.bg:"#F2F2F7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:lv?lv.color:AC,flexShrink:0}}>{id}</div>
+                            style={{width:"100%",padding:"12px 14px",border:"none",cursor:"pointer",
+                              background:"transparent",
+                              display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF}}>
+                            <div style={{
+                              width:36,height:36,borderRadius:10,
+                              background: isE ? AC : (lv?lv.bg:"#F2F2F7"),
+                              display:"flex",alignItems:"center",justifyContent:"center",
+                              fontSize:12,fontWeight:800,
+                              color: isE ? "#fff" : (lv?lv.color:AC),
+                              flexShrink:0,
+                              boxShadow: isE ? `0 4px 12px rgba(232,112,44,0.35)` : "none",
+                              transition:"all 0.2s",
+                            }}>{id}</div>
                             <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:13,fontWeight:600,color:"#1C1C1E",lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{title}</div>
+                              <div style={{fontSize:13,fontWeight: isE?700:600,color: isE?AC:"#1C1C1E",lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",transition:"color 0.2s"}}>{title}</div>
                               <div style={{display:"flex",alignItems:"center",gap:5,marginTop:3}}>
                                 <span style={{fontSize:10,color:"#8E8E93",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>📚 {book}</span>
                                 <span style={{fontSize:10,fontWeight:700,color:pb.color,background:pb.bg,borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0}}>{pb.e} {pb.label}</span>
@@ -221,57 +243,64 @@ export default function App(){
                             </div>
                             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,flexShrink:0}}>
                               {lv?<span style={{fontSize:18}}>{lv.e}</span>:<div style={{width:18,height:18,borderRadius:"50%",border:"2px dashed #C7C7CC"}}/>}
-                              {sd>0&&<div style={{fontSize:9,color:"#8E8E93",fontWeight:700}}>{sd}/4</div>}
+                              {sd>0&&<div style={{fontSize:9,color:isE?AC:"#8E8E93",fontWeight:700}}>{sd}/4</div>}
                             </div>
                           </button>
 
+                          {/* EXPANDED PANEL */}
                           {isE&&(
-                            <div style={{background:"#FFF8F4",padding:"14px 14px 16px",borderTop:"1px solid rgba(232,112,44,0.15)"}}>
-                              <div style={{marginBottom:14}}>
-                                <div style={{fontSize:10,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Меңгеру деңгейі</div>
-                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                            <div style={{padding:"0 14px 18px 14px"}}>
+
+                              {/* LEVEL */}
+                              <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:"14px",marginBottom:10,border:`1px solid rgba(232,112,44,0.15)`,boxShadow:"0 2px 8px rgba(232,112,44,0.08)"}}>
+                                <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Меңгеру деңгейі</div>
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                                   {LEVELS.map(lv=>(
                                     <button key={lv.id} onClick={()=>setLv(id,lv.id)}
-                                      style={{padding:"8px",borderRadius:12,border:`2px solid ${t.level===lv.id?lv.color:"transparent"}`,background:t.level===lv.id?lv.bg:"#fff",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6,fontFamily:FF}}>
-                                      <span style={{fontSize:16}}>{lv.e}</span>
-                                      <span style={{fontSize:11,fontWeight:600,color:t.level===lv.id?lv.color:"#3C3C43"}}>{lv.label}</span>
+                                      style={{padding:"10px 8px",borderRadius:12,border:`2px solid ${t.level===lv.id?lv.color:"#E5E5EA"}`,background:t.level===lv.id?lv.bg:"#fff",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6,fontFamily:FF,transition:"all 0.15s"}}>
+                                      <span style={{fontSize:18}}>{lv.e}</span>
+                                      <span style={{fontSize:11,fontWeight:700,color:t.level===lv.id?lv.color:"#8E8E93"}}>{lv.label}</span>
                                     </button>
                                   ))}
                                 </div>
                               </div>
-                              <div style={{marginBottom:14}}>
-                                <div style={{fontSize:10,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Меңгеру қадамдары</div>
-                                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+
+                              {/* STEPS */}
+                              <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:"14px",marginBottom:10,border:`1px solid rgba(232,112,44,0.15)`,boxShadow:"0 2px 8px rgba(232,112,44,0.08)"}}>
+                                <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Меңгеру қадамдары</div>
+                                <div style={{display:"flex",flexDirection:"column",gap:6}}>
                                   {STEPS.map(st=>{
                                     const ck=t.steps?.[st.id];
                                     return (
                                       <button key={st.id} onClick={()=>togSt(id,st.id)}
-                                        style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:ck?AC2:"#fff",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF}}>
-                                        <div style={{width:22,height:22,borderRadius:6,background:ck?AC:"#E5E5EA",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                                          {ck&&<span style={{color:"#fff",fontSize:14,fontWeight:900}}>✓</span>}
+                                        style={{padding:"10px 12px",borderRadius:12,border:`1.5px solid ${ck?AC:"#E5E5EA"}`,cursor:"pointer",background:ck?AC2:"#fff",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF,transition:"all 0.15s"}}>
+                                        <div style={{width:24,height:24,borderRadius:7,background:ck?AC:"#E5E5EA",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+                                          {ck&&<span style={{color:"#fff",fontSize:14,fontWeight:900,lineHeight:1}}>✓</span>}
                                         </div>
-                                        <span style={{fontSize:13,fontWeight:500,color:"#1C1C1E"}}>{st.e} {st.label}</span>
+                                        <span style={{fontSize:13,fontWeight:ck?700:500,color:ck?AC:"#3C3C43"}}>{st.e} {st.label}</span>
                                       </button>
                                     );
                                   })}
                                 </div>
                               </div>
-                              <div>
-                                <div style={{fontSize:10,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:0.6,marginBottom:10}}>Қосымша материалдар</div>
+
+                              {/* MATERIALS */}
+                              <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:"14px",border:`1px solid rgba(232,112,44,0.15)`,boxShadow:"0 2px 8px rgba(232,112,44,0.08)"}}>
+                                <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Қосымша материалдар</div>
                                 {MATS.map(mc=>{
                                   const ml=t.materials?.[mc.id]||[];
                                   const isA=addMat?.id===id&&addMat?.cat===mc.id;
                                   return (
                                     <div key={mc.id} style={{marginBottom:12}}>
-                                      <div style={{fontSize:12,fontWeight:600,color:"#3C3C43",marginBottom:5}}>{mc.e} {mc.label}</div>
+                                      <div style={{fontSize:12,fontWeight:600,color:"#3C3C43",marginBottom:6}}>{mc.e} {mc.label}</div>
                                       {ml.map((m,i)=>(
-                                        <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"#fff",borderRadius:10,padding:"7px 10px",marginBottom:4}}>
-                                          <a href={m.url} target="_blank" rel="noreferrer" style={{flex:1,fontSize:12,color:AC,textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🔗 {m.lbl}</a>
-                                          <button onClick={()=>delM(id,mc.id,i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#FF3B30",padding:"0 2px",flexShrink:0}}>✕</button>
+                                        <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"#F8F8F8",borderRadius:10,padding:"8px 10px",marginBottom:5,border:"1px solid #F0F0F0"}}>
+                                          <a href={m.url} target="_blank" rel="noreferrer" style={{flex:1,fontSize:12,color:AC,textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500}}>🔗 {m.lbl}</a>
+                                          <button onClick={()=>delM(id,mc.id,i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#FF3B30",padding:"0 2px",flexShrink:0}}>✕</button>
                                         </div>
                                       ))}
                                       {isA?(
-                                        <div style={{background:"#fff",borderRadius:12,padding:10}}>
+                                        <div style={{background:"#fff",borderRadius:12,padding:10,border:"1px solid #E5E5EA"}}>
                                           <input placeholder="Сілтеме (URL)" value={mUrl} onChange={e=>setMUrl(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #E5E5EA",fontSize:12,marginBottom:5,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
                                           <input placeholder="Атауы (міндетті емес)" value={mLbl} onChange={e=>setMlbl(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #E5E5EA",fontSize:12,marginBottom:8,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
                                           <div style={{display:"flex",gap:6}}>
@@ -280,7 +309,7 @@ export default function App(){
                                           </div>
                                         </div>
                                       ):(
-                                        <button onClick={()=>{setAddMat({id,cat:mc.id});setMUrl("");setMlbl("");}} style={{padding:"6px 12px",borderRadius:10,border:`1.5px dashed ${AC}`,background:"transparent",color:AC,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:FF}}>+ Материал қос</button>
+                                        <button onClick={()=>{setAddMat({id,cat:mc.id});setMUrl("");setMlbl("");}} style={{padding:"7px 14px",borderRadius:10,border:`1.5px dashed ${AC}`,background:"transparent",color:AC,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:FF}}>+ Материал қос</button>
                                       )}
                                     </div>
                                   );
@@ -297,6 +326,72 @@ export default function App(){
             </div>
           );
         })}
+
+        {/* ── МЕНІҢ МАТЕРИАЛДАРЫМ ── */}
+        <div style={{marginTop:20}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingLeft:4}}>
+            <div style={{width:36,height:36,borderRadius:12,background:AC,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:`0 4px 12px rgba(232,112,44,0.3)`}}>📚</div>
+            <div>
+              <div style={{fontSize:17,fontWeight:800,color:"#1C1C1E",letterSpacing:-0.3}}>Менің материалдарым</div>
+              <div style={{fontSize:11,color:"#8E8E93"}}>Жеке кітапхана — сілтемелер мен ресурстар</div>
+            </div>
+          </div>
+
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {MY_CATS.map(cat=>{
+              const items=myMats[cat.id]||[];
+              const isA=addMyMat===cat.id;
+              return (
+                <div key={cat.id} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.07)"}}>
+                  {/* CAT HEADER */}
+                  <div style={{background:cat.bg,padding:"14px 16px",borderBottom:`2px solid ${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:22}}>{cat.e}</span>
+                      <div>
+                        <div style={{fontSize:14,fontWeight:700,color:cat.color}}>{cat.label}</div>
+                        <div style={{fontSize:11,color:"#8E8E93"}}>{items.length} материал</div>
+                      </div>
+                    </div>
+                    <button onClick={()=>setAddMyMat(isA?null:cat.id)}
+                      style={{width:32,height:32,borderRadius:10,background:cat.color,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20,fontWeight:300,lineHeight:1,boxShadow:`0 3px 8px ${cat.color}44`}}>
+                      {isA?"✕":"+"}
+                    </button>
+                  </div>
+
+                  {/* ADD FORM */}
+                  {isA&&(
+                    <div style={{padding:"12px 16px",background:"#FAFAFA",borderBottom:"1px solid #F0F0F0"}}>
+                      <input placeholder="Сілтеме (URL)" value={myUrl} onChange={e=>setMyUrl(e.target.value)}
+                        style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1.5px solid ${cat.color}44`,fontSize:13,marginBottom:6,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
+                      <input placeholder="Атауы" value={myLbl} onChange={e=>setMyLbl(e.target.value)}
+                        style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1.5px solid ${cat.color}44`,fontSize:13,marginBottom:10,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
+                      <button onClick={()=>{if(myUrl.trim()){addMyM(cat.id,myUrl.trim(),myLbl.trim());setMyUrl("");setMyLbl("");setAddMyMat(null);}}}
+                        style={{width:"100%",padding:"10px",borderRadius:10,border:"none",background:cat.color,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:FF}}>
+                        Сақтау
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ITEMS */}
+                  <div style={{padding:"10px 12px",display:"flex",flexDirection:"column",gap:6}}>
+                    {items.length===0?(
+                      <div style={{padding:"12px 4px",textAlign:"center",color:"#C7C7CC",fontSize:13}}>Әзірге материал жоқ</div>
+                    ):items.map((m,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:cat.bg,borderRadius:12,padding:"10px 12px",border:`1px solid ${cat.color}22`}}>
+                        <span style={{fontSize:16,flexShrink:0}}>{cat.e}</span>
+                        <a href={m.url} target="_blank" rel="noreferrer"
+                          style={{flex:1,fontSize:13,color:cat.color,textDecoration:"none",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          {m.lbl}
+                        </a>
+                        <button onClick={()=>delMyM(cat.id,i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#FF3B30",padding:"0 2px",flexShrink:0}}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* FOOTER */}
         <div style={{marginTop:20,background:"#1C1C1E",borderRadius:20,padding:"18px 18px 20px",boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
