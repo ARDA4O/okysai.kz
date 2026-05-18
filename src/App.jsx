@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 
 const AC = "#E8702C";
 const AC2 = "rgba(232,112,44,0.12)";
-const AC3 = "rgba(232,112,44,0.07)";
 const FF = "-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif";
 
 const PERIODS = [
@@ -29,20 +28,23 @@ const PRF=[{id:"all",label:"Барлығы"},{id:"high",e:"🔥",label:"Тек �
 const STEPS=[{id:"read",e:"📖",label:"Кітап оқыдым"},{id:"test",e:"📝",label:"Тест тапсырдым"},{id:"errors",e:"❌",label:"Қатемен жұмыс жасадым"},{id:"repeat",e:"🔁",label:"Қайта қайталадым"}];
 const MATS=[{id:"video",e:"🎬",label:"Нұсқа талдау"},{id:"test",e:"📄",label:"Тест тапсырмалары"},{id:"checklist",e:"📋",label:"Чеклист файлдары"},{id:"other",e:"📌",label:"Басқа"}];
 const PB={high:{e:"🔥",label:"Жоғары",color:"#C05A00",bg:"rgba(232,112,44,0.13)"},mid:{e:"⚡",label:"Орташа",color:"#9A6F00",bg:"rgba(255,204,0,0.13)"},low:{e:"—",label:"Төмен",color:"#999",bg:"rgba(0,0,0,0.05)"}};
+const MY_CATS=[{id:"nuska",e:"🎬",label:"Нұсқа талдаулар",color:"#E8702C",bg:"rgba(232,112,44,0.08)"},{id:"test",e:"📄",label:"Тесттер",color:"#007AFF",bg:"rgba(0,122,255,0.08)"},{id:"checklist",e:"📋",label:"Чеклисттер",color:"#1E8A3A",bg:"rgba(52,199,89,0.08)"},{id:"other",e:"📌",label:"Басқа материалдар",color:"#8E44AD",bg:"rgba(142,68,173,0.08)"}];
 
-const MY_CATS=[
-  {id:"nuska",e:"🎬",label:"Нұсқа талдаулар",color:"#E8702C",bg:"rgba(232,112,44,0.08)"},
-  {id:"test",e:"📄",label:"Тесттер",color:"#007AFF",bg:"rgba(0,122,255,0.08)"},
-  {id:"checklist",e:"📋",label:"Чеклисттер",color:"#1E8A3A",bg:"rgba(52,199,89,0.08)"},
-  {id:"other",e:"📌",label:"Басқа материалдар",color:"#8E44AD",bg:"rgba(142,68,173,0.08)"},
+const KANBAN_COLS=[
+  {id:"week",label:"Осы апта",icon:"🗓",color:"#5856D6",bg:"rgba(88,86,214,0.08)"},
+  {id:"tomorrow",label:"Ертең",icon:"📆",color:"#FF9500",bg:"rgba(255,149,0,0.08)"},
+  {id:"today",label:"Бүгін",icon:"📅",color:"#FF3B30",bg:"rgba(255,59,48,0.08)"},
+  {id:"done",label:"Аяқталды",icon:"✅",color:"#1E8A3A",bg:"rgba(52,199,89,0.08)"},
 ];
 
 const def=()=>({level:null,steps:{},materials:{}});
 const defMy=()=>({nuska:[],test:[],checklist:[],other:[]});
+const defKanban=()=>({week:[],tomorrow:[],today:[],done:[]});
 
 export default function App(){
   const [td,setTd]=useState({});
   const [myMats,setMyMats]=useState(defMy());
+  const [kanban,setKanban]=useState(defKanban());
   const [open,setOpen]=useState({p1:true});
   const [exp,setExp]=useState(null);
   const [lvF,setLvF]=useState("all");
@@ -56,12 +58,28 @@ export default function App(){
   const [addMyMat,setAddMyMat]=useState(null);
   const [myUrl,setMyUrl]=useState("");
   const [myLbl,setMyLbl]=useState("");
+  // Accordion states
+  const [showLvF,setShowLvF]=useState(false);
+  const [showPrF,setShowPrF]=useState(false);
+  const [showMyMats,setShowMyMats]=useState(false);
+  // Kanban states
+  const [showKanban,setShowKanban]=useState(false);
+  const [showPlanModal,setShowPlanModal]=useState(false);
+  const [planTab,setPlanTab]=useState("topics");
+  const [planSearch,setPlanSearch]=useState("");
+  const [planSelected,setPlanSelected]=useState([]);
+  const [planCol,setPlanCol]=useState("today");
+  const [planMatSelected,setPlanMatSelected]=useState([]);
+  // Drag
+  const dragItem=useRef(null);
+  const dragCol=useRef(null);
   const tmr=useRef(null);
+  const [expandedKanbanCard,setExpandedKanbanCard]=useState(null);
 
   useEffect(()=>{
     (async()=>{
       try{
-        const raw=localStorage.getItem("okysai_v4");
+        const raw=localStorage.getItem("okysai_v5");
         if(raw){
           const d=JSON.parse(raw);
           if(d.td)setTd(d.td);
@@ -69,6 +87,7 @@ export default function App(){
           if(d.ubt1)setUbt1(d.ubt1);
           if(d.ubt2)setUbt2(d.ubt2);
           if(d.myMats)setMyMats(d.myMats);
+          if(d.kanban)setKanban(d.kanban);
         }
       }catch(e){}
       setReady(true);
@@ -79,18 +98,55 @@ export default function App(){
     if(!ready)return;
     if(tmr.current)clearTimeout(tmr.current);
     tmr.current=setTimeout(()=>{
-      try{localStorage.setItem("okysai_v4",JSON.stringify({td,open,ubt1,ubt2,myMats}));}catch(e){}
+      try{localStorage.setItem("okysai_v5",JSON.stringify({td,open,ubt1,ubt2,myMats,kanban}));}catch(e){}
     },800);
-  },[td,open,ubt1,ubt2,myMats,ready]);
+  },[td,open,ubt1,ubt2,myMats,kanban,ready]);
 
   const upd=(id,fn)=>setTd(p=>{const c=p[id]||def();return{...p,[id]:fn(c)};});
   const setLv=(id,lv)=>upd(id,c=>({...c,level:c.level===lv?null:lv}));
   const togSt=(id,st)=>upd(id,c=>({...c,steps:{...c.steps,[st]:!c.steps?.[st]}}));
   const addM=(id,cat,url,lbl)=>upd(id,c=>{const ms=c.materials||{};return{...c,materials:{...ms,[cat]:[...(ms[cat]||[]),{url,lbl:lbl||url}]}};});
   const delM=(id,cat,i)=>upd(id,c=>{const ms={...c.materials};const a=[...(ms[cat]||[])];a.splice(i,1);return{...c,materials:{...ms,[cat]:a}};});
-
   const addMyM=(cat,url,lbl)=>setMyMats(p=>({...p,[cat]:[...(p[cat]||[]),{url,lbl:lbl||url}]}));
   const delMyM=(cat,i)=>setMyMats(p=>{const a=[...(p[cat]||[])];a.splice(i,1);return{...p,[cat]:a};});
+
+  // Kanban helpers
+  const addToKanban=()=>{
+    if(planTab==="topics"&&planSelected.length>0){
+      setKanban(prev=>{
+        const col=[...(prev[planCol]||[])];
+        planSelected.forEach(id=>{
+          if(!col.find(c=>c.type==="topic"&&c.id===id)) col.push({type:"topic",id});
+        });
+        return{...prev,[planCol]:col};
+      });
+    }
+    if(planTab==="materials"&&planMatSelected.length>0){
+      setKanban(prev=>{
+        const col=[...(prev[planCol]||[])];
+        planMatSelected.forEach(item=>{
+          col.push({type:"material",...item});
+        });
+        return{...prev,[planCol]:col};
+      });
+    }
+    setPlanSelected([]);setPlanMatSelected([]);setShowPlanModal(false);setPlanSearch("");
+  };
+
+  const removeFromKanban=(colId,idx)=>setKanban(prev=>{
+    const col=[...(prev[colId]||[])];col.splice(idx,1);return{...prev,[colId]:col};
+  });
+
+  const moveCard=(fromCol,fromIdx,toCol)=>{
+    if(fromCol===toCol)return;
+    setKanban(prev=>{
+      const from=[...(prev[fromCol]||[])];
+      const to=[...(prev[toCol]||[])];
+      const [item]=from.splice(fromIdx,1);
+      to.push(item);
+      return{...prev,[fromCol]:from,[toCol]:to};
+    });
+  };
 
   const days=ds=>{if(!ds)return null;const d=new Date(ds),n=new Date();n.setHours(0,0,0,0);d.setHours(0,0,0,0);return Math.ceil((d-n)/86400000);};
   const ptFor=p=>TOPICS.filter(([id])=>id>=p.from&&id<=p.to);
@@ -100,10 +156,120 @@ export default function App(){
   const totP=Math.round(totG/189*100);
   const d1=days(ubt1),d2=days(ubt2);
 
+  // All my materials flat list for plan modal
+  const allMyMats=[];
+  MY_CATS.forEach(cat=>{(myMats[cat.id]||[]).forEach((m,i)=>allMyMats.push({catId:cat.id,catLabel:cat.label,catE:cat.e,idx:i,...m}));});
+
+  const filteredTopics=planSearch.trim()
+    ?TOPICS.filter(([id,title])=>String(id).includes(planSearch)||title.toLowerCase().includes(planSearch.toLowerCase()))
+    :TOPICS;
+
   if(!ready) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",color:"#8E8E93",fontFamily:FF}}>Жүктелуде...</div>;
+
+  const SectionHeader=({title,sub,icon,open,onToggle,color=AC})=>(
+    <button onClick={onToggle} style={{width:"100%",background:"#fff",borderRadius:open?"18px 18px 0 0":18,padding:"14px 16px",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:10,boxShadow:"0 1px 8px rgba(0,0,0,0.07)",fontFamily:FF,marginBottom:0}}>
+      <span style={{fontSize:20}}>{icon}</span>
+      <div style={{flex:1,textAlign:"left"}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#1C1C1E"}}>{title}</div>
+        {sub&&<div style={{fontSize:11,color:"#8E8E93",marginTop:1}}>{sub}</div>}
+      </div>
+      <span style={{fontSize:12,color:"#8E8E93",background:"#F2F2F7",borderRadius:8,padding:"3px 8px",fontWeight:600}}>{open?"Жабу":"Ашу"}</span>
+      <span style={{fontSize:13,color:"#636366",display:"inline-block",transform:open?"rotate(180deg)":"none",transition:"transform 0.25s"}}>▼</span>
+    </button>
+  );
 
   return (
     <div style={{minHeight:"100vh",backgroundColor:"#F2F2F7",backgroundImage:"radial-gradient(rgba(0,0,0,0.09) 1px,transparent 1px)",backgroundSize:"22px 22px",paddingBottom:60,fontFamily:FF}}>
+
+      {/* PLAN MODAL */}
+      {showPlanModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"flex-end"}} onClick={()=>setShowPlanModal(false)}>
+          <div style={{width:"100%",background:"#fff",borderRadius:"24px 24px 0 0",maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+            {/* Modal header */}
+            <div style={{padding:"16px 18px 12px",borderBottom:"1px solid #F2F2F7",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{fontSize:17,fontWeight:800,color:"#1C1C1E"}}>Жоспарға қосу</div>
+              <button onClick={()=>setShowPlanModal(false)} style={{background:"#F2F2F7",border:"none",borderRadius:20,width:30,height:30,cursor:"pointer",fontSize:16,color:"#8E8E93"}}>✕</button>
+            </div>
+            {/* Column selector */}
+            <div style={{padding:"12px 18px",borderBottom:"1px solid #F2F2F7"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Қай колонкаға қосу:</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {KANBAN_COLS.map(col=>(
+                  <button key={col.id} onClick={()=>setPlanCol(col.id)}
+                    style={{padding:"6px 12px",borderRadius:10,border:"none",cursor:"pointer",background:planCol===col.id?col.color:"#F2F2F7",color:planCol===col.id?"#fff":"#3C3C43",fontWeight:600,fontSize:12,fontFamily:FF}}>
+                    {col.icon} {col.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Tabs */}
+            <div style={{display:"flex",borderBottom:"1px solid #F2F2F7"}}>
+              {[{id:"topics",label:"📚 Тақырыптар"},{id:"materials",label:"📁 Материалдар"}].map(t=>(
+                <button key={t.id} onClick={()=>setPlanTab(t.id)}
+                  style={{flex:1,padding:"12px",border:"none",cursor:"pointer",background:"transparent",fontWeight:700,fontSize:13,color:planTab===t.id?AC:"#8E8E93",borderBottom:planTab===t.id?`2px solid ${AC}`:"2px solid transparent",fontFamily:FF}}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {/* Search (topics only) */}
+            {planTab==="topics"&&(
+              <div style={{padding:"10px 18px",borderBottom:"1px solid #F2F2F7"}}>
+                <input placeholder="Нөмір немесе атау бойынша іздеу..." value={planSearch} onChange={e=>setPlanSearch(e.target.value)}
+                  style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"1px solid #E5E5EA",fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
+              </div>
+            )}
+            {/* List */}
+            <div style={{flex:1,overflowY:"auto",padding:"8px 18px"}}>
+              {planTab==="topics"?filteredTopics.map(([id,title])=>{
+                const sel=planSelected.includes(id);
+                const pb=PB[gp(id)];
+                const lv=LEVELS.find(l=>l.id===(td[id]?.level||null));
+                return(
+                  <button key={id} onClick={()=>setPlanSelected(s=>sel?s.filter(x=>x!==id):[...s,id])}
+                    style={{width:"100%",padding:"10px 12px",borderRadius:12,border:`2px solid ${sel?AC:"#F2F2F7"}`,cursor:"pointer",background:sel?AC2:"#fff",display:"flex",alignItems:"center",gap:10,textAlign:"left",marginBottom:6,fontFamily:FF}}>
+                    <div style={{width:30,height:30,borderRadius:8,background:sel?AC:"#F2F2F7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:sel?"#fff":AC,flexShrink:0}}>{id}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,color:sel?AC:"#1C1C1E",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{title}</div>
+                      <div style={{display:"flex",gap:5,marginTop:2}}>
+                        <span style={{fontSize:10,color:pb.color,background:pb.bg,borderRadius:5,padding:"1px 5px",fontWeight:700}}>{pb.e} {pb.label}</span>
+                        {lv&&<span style={{fontSize:10}}>{lv.e}</span>}
+                      </div>
+                    </div>
+                    {sel&&<span style={{color:AC,fontSize:18,flexShrink:0}}>✓</span>}
+                  </button>
+                );
+              }):(
+                allMyMats.length===0
+                  ?<div style={{padding:24,textAlign:"center",color:"#8E8E93",fontSize:13}}>«Менің материалдарым» бөлімінде материал жоқ</div>
+                  :allMyMats.map((m,i)=>{
+                    const sel=planMatSelected.some(x=>x.url===m.url&&x.lbl===m.lbl);
+                    return(
+                      <button key={i} onClick={()=>setPlanMatSelected(s=>sel?s.filter(x=>!(x.url===m.url&&x.lbl===m.lbl)):[...s,{url:m.url,lbl:m.lbl,catE:m.catE}])}
+                        style={{width:"100%",padding:"10px 12px",borderRadius:12,border:`2px solid ${sel?AC:"#F2F2F7"}`,cursor:"pointer",background:sel?AC2:"#fff",display:"flex",alignItems:"center",gap:10,textAlign:"left",marginBottom:6,fontFamily:FF}}>
+                        <span style={{fontSize:20}}>{m.catE}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:12,fontWeight:600,color:sel?AC:"#1C1C1E",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.lbl}</div>
+                          <div style={{fontSize:10,color:"#8E8E93"}}>{m.catLabel}</div>
+                        </div>
+                        {sel&&<span style={{color:AC,fontSize:18,flexShrink:0}}>✓</span>}
+                      </button>
+                    );
+                  })
+              )}
+            </div>
+            {/* Footer */}
+            <div style={{padding:"12px 18px",borderTop:"1px solid #F2F2F7",background:"#fff"}}>
+              <div style={{fontSize:12,color:"#8E8E93",marginBottom:8,textAlign:"center"}}>
+                {planTab==="topics"?`${planSelected.length} тақырып таңдалды`:`${planMatSelected.length} материал таңдалды`}
+              </div>
+              <button onClick={addToKanban}
+                style={{width:"100%",padding:"14px",borderRadius:14,border:"none",background:AC,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:FF,boxShadow:`0 4px 14px rgba(232,112,44,0.4)`}}>
+                Жоспарға қосу →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HEADER */}
       <div style={{background:"#1C1C1E",padding:"28px 18px 20px",position:"relative",overflow:"hidden"}}>
@@ -136,46 +302,174 @@ export default function App(){
           {[{label:"1-ші Нағыз ҰБТ",val:ubt1,set:setUbt1,d:d1},{label:"2-ші Нағыз ҰБТ",val:ubt2,set:setUbt2,d:d2}].map((u,i)=>(
             <div key={i} style={{background:"#fff",borderRadius:18,padding:"12px 14px",boxShadow:"0 1px 8px rgba(0,0,0,0.07)"}}>
               <div style={{fontSize:9,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:0.6,marginBottom:4}}>{u.label}</div>
-              {u.val&&u.d!==null?(<div>
-                <div style={{fontSize:28,fontWeight:800,color:u.d<=7?"#FF3B30":AC,lineHeight:1}}>{u.d}</div>
-                <div style={{fontSize:11,color:"#8E8E93"}}>күн қалды</div>
-                <div style={{fontSize:10,color:"#C7C7CC"}}>{new Date(u.val).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}</div>
-              </div>):(<div style={{fontSize:11,color:"#C7C7CC",margin:"6px 0 4px"}}>Күн таңдаңыз:</div>)}
-              <input type="date" value={u.val} onChange={e=>u.set(e.target.value)}
-                style={{marginTop:6,width:"100%",padding:"5px 6px",borderRadius:8,border:`1px solid ${AC2}`,fontSize:11,color:AC,fontWeight:600,background:"#FFF8F4",boxSizing:"border-box",outline:"none",cursor:"pointer",fontFamily:FF}}/>
+              {u.val&&u.d!==null?(<div><div style={{fontSize:28,fontWeight:800,color:u.d<=7?"#FF3B30":AC,lineHeight:1}}>{u.d}</div><div style={{fontSize:11,color:"#8E8E93"}}>күн қалды</div><div style={{fontSize:10,color:"#C7C7CC"}}>{new Date(u.val).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}</div></div>):(<div style={{fontSize:11,color:"#C7C7CC",margin:"6px 0 4px"}}>Күн таңдаңыз:</div>)}
+              <input type="date" value={u.val} onChange={e=>u.set(e.target.value)} style={{marginTop:6,width:"100%",padding:"5px 6px",borderRadius:8,border:`1px solid ${AC2}`,fontSize:11,color:AC,fontWeight:600,background:"#FFF8F4",boxSizing:"border-box",outline:"none",cursor:"pointer",fontFamily:FF}}/>
             </div>
           ))}
         </div>
 
-        {/* LEVEL FILTER */}
-        <div style={{background:"#fff",borderRadius:18,padding:"14px",marginTop:10,boxShadow:"0 1px 8px rgba(0,0,0,0.07)"}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#1C1C1E",marginBottom:9}}>Тақырыптар фильтрі</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {LVF.map(f=>{
-              const cnt=f.id==="all"?189:TOPICS.filter(([id])=>(td[id]?.level||null)===f.id).length;
-              const active=lvF===f.id;
-              return <button key={f.id} onClick={()=>setLvF(active&&f.id!=="all"?"all":f.id)}
-                style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
-                <span>{f.e?f.e+" ":""}{f.label}</span><span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
-              </button>;
-            })}
-          </div>
+        {/* ── ЖОСПАРЛАУ (KANBAN) ── */}
+        <div style={{marginTop:14}}>
+          <button onClick={()=>setShowKanban(v=>!v)}
+            style={{width:"100%",background:showKanban?"#1C1C1E":"#fff",borderRadius:showKanban?"18px 18px 0 0":18,padding:"14px 16px",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:10,boxShadow:"0 1px 8px rgba(0,0,0,0.07)",fontFamily:FF}}>
+            <span style={{fontSize:20}}>📋</span>
+            <div style={{flex:1,textAlign:"left"}}>
+              <div style={{fontSize:14,fontWeight:700,color:showKanban?"#fff":"#1C1C1E"}}>Жоспарлау</div>
+              <div style={{fontSize:11,color:showKanban?"rgba(255,255,255,0.5)":"#8E8E93",marginTop:1}}>Бүгін, ертең, осы апта жоспары</div>
+            </div>
+            <span style={{fontSize:12,color:showKanban?"rgba(255,255,255,0.6)":"#8E8E93",background:showKanban?"rgba(255,255,255,0.1)":"#F2F2F7",borderRadius:8,padding:"3px 8px",fontWeight:600}}>{showKanban?"Жабу":"Ашу"}</span>
+            <span style={{fontSize:13,color:showKanban?"#fff":"#636366",display:"inline-block",transform:showKanban?"rotate(180deg)":"none",transition:"transform 0.25s"}}>▼</span>
+          </button>
+
+          {showKanban&&(
+            <div style={{background:"#1C1C1E",borderRadius:"0 0 18px 18px",padding:"14px 14px 18px",boxShadow:"0 4px 14px rgba(0,0,0,0.15)"}}>
+              {/* Add button */}
+              <button onClick={()=>setShowPlanModal(true)}
+                style={{width:"100%",padding:"12px",borderRadius:14,border:`2px dashed rgba(232,112,44,0.5)`,background:"rgba(232,112,44,0.08)",color:AC,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:FF,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                <span style={{fontSize:18}}>+</span> Жоспарға қосу
+              </button>
+
+              {/* Kanban board - horizontal scroll */}
+              <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6,WebkitOverflowScrolling:"touch"}}>
+                {KANBAN_COLS.map(col=>{
+                  const cards=kanban[col.id]||[];
+                  return(
+                    <div key={col.id}
+                      style={{minWidth:220,maxWidth:240,flexShrink:0,background:col.bg,borderRadius:16,border:`1.5px solid ${col.color}33`,overflow:"hidden"}}
+                      onDragOver={e=>{e.preventDefault();}}
+                      onDrop={e=>{
+                        e.preventDefault();
+                        if(dragItem.current!==null&&dragCol.current!==null){
+                          moveCard(dragCol.current,dragItem.current,col.id);
+                          dragItem.current=null;dragCol.current=null;
+                        }
+                      }}>
+                      {/* Col header */}
+                      <div style={{padding:"12px 14px 10px",borderBottom:`1.5px solid ${col.color}22`,display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:18}}>{col.icon}</span>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:800,color:col.color}}>{col.label}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{cards.length} тапсырма</div>
+                        </div>
+                      </div>
+                      {/* Cards */}
+                      <div style={{padding:"8px",minHeight:80}}>
+                        {cards.length===0&&(
+                          <div style={{padding:"16px 8px",textAlign:"center",color:"rgba(255,255,255,0.25)",fontSize:12}}>Бос</div>
+                        )}
+                        {cards.map((card,idx)=>{
+                          if(card.type==="topic"){
+                            const topic=TOPICS.find(([id])=>id===card.id);
+                            if(!topic)return null;
+                            const [id,title,book]=topic;
+                            const pb=PB[gp(id)];
+                            const lv=LEVELS.find(l=>l.id===(td[id]?.level||null));
+                            const cardKey=`${col.id}-${idx}`;
+                            const isExpK=expandedKanbanCard===cardKey;
+                            const t=td[id]||def();
+                            const sd=STEPS.filter(s=>t.steps?.[s.id]).length;
+                            return(
+                              <div key={idx} style={{background:"rgba(255,255,255,0.97)",borderRadius:14,marginBottom:8,boxShadow:"0 2px 10px rgba(0,0,0,0.15)",overflow:"hidden",border:isExpK?`2px solid ${AC}`:"2px solid transparent",transition:"border 0.2s"}}>
+                                <div draggable onDragStart={()=>{dragItem.current=idx;dragCol.current=col.id;}} style={{padding:"10px 12px",cursor:"grab"}}>
+                                  <div style={{display:"flex",alignItems:"flex-start",gap:6}}>
+                                    <div style={{width:28,height:28,borderRadius:8,background:lv?lv.bg:AC2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:lv?lv.color:AC,flexShrink:0}}>{id}</div>
+                                    <div style={{flex:1,minWidth:0}}>
+                                      <div style={{fontSize:12,fontWeight:700,color:"#1C1C1E",lineHeight:1.3,marginBottom:4}}>{title}</div>
+                                      <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+                                        <span style={{fontSize:10,fontWeight:700,color:pb.color,background:pb.bg,borderRadius:4,padding:"1px 6px"}}>{pb.e} {pb.label}</span>
+                                        {lv&&<span style={{fontSize:10,fontWeight:600,color:lv.color}}>{lv.e} {lv.label}</span>}
+                                        {sd>0&&<span style={{fontSize:10,color:"#8E8E93"}}>{sd}/4</span>}
+                                      </div>
+                                    </div>
+                                    <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                                      <button onClick={()=>setExpandedKanbanCard(isExpK?null:cardKey)} style={{background:isExpK?AC:"#F2F2F7",border:"none",borderRadius:6,width:24,height:24,cursor:"pointer",color:isExpK?"#fff":"#8E8E93",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>{isExpK?"▲":"▼"}</button>
+                                      <button onClick={()=>removeFromKanban(col.id,idx)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#C7C7CC",padding:0,textAlign:"center"}}>✕</button>
+                                    </div>
+                                  </div>
+                                </div>
+                                {isExpK&&(
+                                  <div style={{borderTop:`1px solid ${AC}22`,padding:"10px 12px",background:"rgba(255,248,244,0.9)"}}>
+                                    <div style={{fontSize:10,color:"#8E8E93",marginBottom:8}}>📚 {book}</div>
+                                    <div style={{marginBottom:10}}>
+                                      <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Меңгеру деңгейі</div>
+                                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+                                        {LEVELS.map(lv=>(<button key={lv.id} onClick={()=>setLv(id,lv.id)} style={{padding:"6px",borderRadius:9,border:`2px solid ${t.level===lv.id?lv.color:"#E5E5EA"}`,background:t.level===lv.id?lv.bg:"#fff",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontFamily:FF}}><span style={{fontSize:14}}>{lv.e}</span><span style={{fontSize:10,fontWeight:700,color:t.level===lv.id?lv.color:"#8E8E93"}}>{lv.label}</span></button>))}
+                                      </div>
+                                    </div>
+                                    <div style={{marginBottom:6}}>
+                                      <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Меңгеру қадамдары</div>
+                                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                                        {STEPS.map(st=>{const ck=t.steps?.[st.id];return(<button key={st.id} onClick={()=>togSt(id,st.id)} style={{padding:"7px 10px",borderRadius:9,border:`1.5px solid ${ck?AC:"#E5E5EA"}`,cursor:"pointer",background:ck?AC2:"#fff",display:"flex",alignItems:"center",gap:8,fontFamily:FF}}><div style={{width:18,height:18,borderRadius:5,background:ck?AC:"#E5E5EA",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{ck&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}</div><span style={{fontSize:11,fontWeight:ck?700:500,color:ck?AC:"#3C3C43"}}>{st.e} {st.label}</span></button>);})}
+                                      </div>
+                                    </div>
+                                    {MATS.map(mc=>{const ml=t.materials?.[mc.id]||[];if(ml.length===0)return null;return(<div key={mc.id} style={{marginBottom:5}}><div style={{fontSize:10,fontWeight:600,color:"#8E8E93",marginBottom:3}}>{mc.e} {mc.label}</div>{ml.map((m,i)=>(<a key={i} href={m.url} target="_blank" rel="noreferrer" style={{display:"block",fontSize:11,color:AC,textDecoration:"none",padding:"4px 8px",background:AC2,borderRadius:6,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🔗 {m.lbl}</a>))}</div>);})}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          } else {
+                            return(
+                              <div key={idx} draggable onDragStart={()=>{dragItem.current=idx;dragCol.current=col.id;}}
+                                style={{background:"rgba(255,255,255,0.97)",borderRadius:12,padding:"10px 12px",marginBottom:8,cursor:"grab",boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <span style={{fontSize:18,flexShrink:0}}>{card.catE||"📌"}</span>
+                                  <a href={card.url} target="_blank" rel="noreferrer" style={{flex:1,fontSize:12,fontWeight:700,color:AC,textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{card.lbl}</a>
+                                  <button onClick={()=>removeFromKanban(col.id,idx)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#C7C7CC",padding:0,flexShrink:0}}>✕</button>
+                                </div>
+                              </div>
+                            );
+                          }
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:8}}>← Карточкаларды колонкалар арасында сүйреңіз →</div>
+            </div>
+          )}
         </div>
 
-        {/* PROB FILTER */}
-        <div style={{background:"#fff",borderRadius:18,padding:"14px",marginTop:10,boxShadow:"0 1px 8px rgba(0,0,0,0.07)"}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#1C1C1E",marginBottom:2}}>Тақырыптардың ықтималдық деңгейі фильтрі</div>
-          <div style={{fontSize:11,color:"#8E8E93",marginBottom:9}}>🔥 103 жоғары · ⚡ 48 орташа · — 38 төмен</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {PRF.map(f=>{
-              const cnt=f.id==="all"?189:TOPICS.filter(([id])=>gp(id)===f.id).length;
-              const active=prF===f.id;
-              return <button key={f.id} onClick={()=>setPrF(active&&f.id!=="all"?"all":f.id)}
-                style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
-                <span>{f.e?f.e+" ":""}{f.label}</span><span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
-              </button>;
-            })}
-          </div>
+        {/* ── LEVEL FILTER (collapsible) ── */}
+        <div style={{marginTop:10}}>
+          <SectionHeader title="Тақырыптар фильтрі" icon="🔍"
+            sub={lvF==="all"?"Барлық тақырыптар":LVF.find(f=>f.id===lvF)?.label}
+            open={showLvF} onToggle={()=>setShowLvF(v=>!v)}/>
+          {showLvF&&(
+            <div style={{background:"#fff",borderRadius:"0 0 18px 18px",padding:"10px 14px 14px",boxShadow:"0 4px 14px rgba(0,0,0,0.07)"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {LVF.map(f=>{
+                  const cnt=f.id==="all"?189:TOPICS.filter(([id])=>(td[id]?.level||null)===f.id).length;
+                  const active=lvF===f.id;
+                  return <button key={f.id} onClick={()=>setLvF(active&&f.id!=="all"?"all":f.id)}
+                    style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
+                    <span>{f.e?f.e+" ":""}{f.label}</span><span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
+                  </button>;
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── PROB FILTER (collapsible) ── */}
+        <div style={{marginTop:10}}>
+          <SectionHeader title="Ықтималдық деңгейі фильтрі" icon="🎯"
+            sub="🔥 103 жоғары · ⚡ 48 орташа · — 38 төмен"
+            open={showPrF} onToggle={()=>setShowPrF(v=>!v)}/>
+          {showPrF&&(
+            <div style={{background:"#fff",borderRadius:"0 0 18px 18px",padding:"10px 14px 14px",boxShadow:"0 4px 14px rgba(0,0,0,0.07)"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {PRF.map(f=>{
+                  const cnt=f.id==="all"?189:TOPICS.filter(([id])=>gp(id)===f.id).length;
+                  const active=prF===f.id;
+                  return <button key={f.id} onClick={()=>setPrF(active&&f.id!=="all"?"all":f.id)}
+                    style={{padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:active?(f.c||AC):"#F2F2F7",color:active?"#fff":"#3C3C43",fontWeight:600,fontSize:13,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:FF,width:"100%"}}>
+                    <span>{f.e?f.e+" ":""}{f.label}</span><span style={{fontSize:12,opacity:0.8}}>{cnt}</span>
+                  </button>;
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* PERIODS */}
@@ -194,9 +488,7 @@ export default function App(){
                 </div>
                 <div style={{textAlign:"right",minWidth:52}}>
                   <div style={{fontSize:13,fontWeight:700,color:AC,marginBottom:3}}>{st.pct}%</div>
-                  <div style={{background:"#3A3A3C",borderRadius:4,height:4,width:52}}>
-                    <div style={{width:`${st.pct}%`,height:"100%",background:AC,borderRadius:4}}/>
-                  </div>
+                  <div style={{background:"#3A3A3C",borderRadius:4,height:4,width:52}}><div style={{width:`${st.pct}%`,height:"100%",background:AC,borderRadius:4}}/></div>
                 </div>
                 <span style={{fontSize:13,color:"#636366",marginLeft:2,display:"inline-block",transform:isO?"rotate(180deg)":"none",transition:"transform 0.25s"}}>▼</span>
               </button>
@@ -212,30 +504,13 @@ export default function App(){
                       const pb=PB[gp(id)];
                       const sd=STEPS.filter(s=>t.steps?.[s.id]).length;
                       return (
-                        <div key={id} style={{
-                          background: isE ? "linear-gradient(135deg,rgba(232,112,44,0.06),rgba(232,112,44,0.02))" : "transparent",
-                          borderLeft: isE ? `3px solid ${AC}` : "3px solid transparent",
-                          transition:"all 0.2s ease",
-                        }}>
+                        <div key={id} style={{background:isE?"linear-gradient(135deg,rgba(232,112,44,0.06),rgba(232,112,44,0.02))":"transparent",borderLeft:isE?`3px solid ${AC}`:"3px solid transparent",transition:"all 0.2s ease"}}>
                           {idx>0&&!isE&&<div style={{height:1,background:"#F2F2F7",marginLeft:56}}/>}
-
-                          {/* TOPIC ROW */}
                           <button onClick={()=>setExp(isE?null:id)}
-                            style={{width:"100%",padding:"12px 14px",border:"none",cursor:"pointer",
-                              background:"transparent",
-                              display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF}}>
-                            <div style={{
-                              width:36,height:36,borderRadius:10,
-                              background: isE ? AC : (lv?lv.bg:"#F2F2F7"),
-                              display:"flex",alignItems:"center",justifyContent:"center",
-                              fontSize:12,fontWeight:800,
-                              color: isE ? "#fff" : (lv?lv.color:AC),
-                              flexShrink:0,
-                              boxShadow: isE ? `0 4px 12px rgba(232,112,44,0.35)` : "none",
-                              transition:"all 0.2s",
-                            }}>{id}</div>
+                            style={{width:"100%",padding:"12px 14px",border:"none",cursor:"pointer",background:"transparent",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF}}>
+                            <div style={{width:36,height:36,borderRadius:10,background:isE?AC:(lv?lv.bg:"#F2F2F7"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:isE?"#fff":(lv?lv.color:AC),flexShrink:0,boxShadow:isE?`0 4px 12px rgba(232,112,44,0.35)`:"none",transition:"all 0.2s"}}>{id}</div>
                             <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:13,fontWeight: isE?700:600,color: isE?AC:"#1C1C1E",lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",transition:"color 0.2s"}}>{title}</div>
+                              <div style={{fontSize:13,fontWeight:isE?700:600,color:isE?AC:"#1C1C1E",lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",transition:"color 0.2s"}}>{title}</div>
                               <div style={{display:"flex",alignItems:"center",gap:5,marginTop:3}}>
                                 <span style={{fontSize:10,color:"#8E8E93",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>📚 {book}</span>
                                 <span style={{fontSize:10,fontWeight:700,color:pb.color,background:pb.bg,borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0}}>{pb.e} {pb.label}</span>
@@ -247,73 +522,23 @@ export default function App(){
                             </div>
                           </button>
 
-                          {/* EXPANDED PANEL */}
                           {isE&&(
                             <div style={{padding:"0 14px 18px 14px"}}>
-
-                              {/* LEVEL */}
                               <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:"14px",marginBottom:10,border:`1px solid rgba(232,112,44,0.15)`,boxShadow:"0 2px 8px rgba(232,112,44,0.08)"}}>
                                 <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Меңгеру деңгейі</div>
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                                  {LEVELS.map(lv=>(
-                                    <button key={lv.id} onClick={()=>setLv(id,lv.id)}
-                                      style={{padding:"10px 8px",borderRadius:12,border:`2px solid ${t.level===lv.id?lv.color:"#E5E5EA"}`,background:t.level===lv.id?lv.bg:"#fff",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6,fontFamily:FF,transition:"all 0.15s"}}>
-                                      <span style={{fontSize:18}}>{lv.e}</span>
-                                      <span style={{fontSize:11,fontWeight:700,color:t.level===lv.id?lv.color:"#8E8E93"}}>{lv.label}</span>
-                                    </button>
-                                  ))}
+                                  {LEVELS.map(lv=>(<button key={lv.id} onClick={()=>setLv(id,lv.id)} style={{padding:"10px 8px",borderRadius:12,border:`2px solid ${t.level===lv.id?lv.color:"#E5E5EA"}`,background:t.level===lv.id?lv.bg:"#fff",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6,fontFamily:FF}}><span style={{fontSize:18}}>{lv.e}</span><span style={{fontSize:11,fontWeight:700,color:t.level===lv.id?lv.color:"#8E8E93"}}>{lv.label}</span></button>))}
                                 </div>
                               </div>
-
-                              {/* STEPS */}
                               <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:"14px",marginBottom:10,border:`1px solid rgba(232,112,44,0.15)`,boxShadow:"0 2px 8px rgba(232,112,44,0.08)"}}>
                                 <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Меңгеру қадамдары</div>
                                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                                  {STEPS.map(st=>{
-                                    const ck=t.steps?.[st.id];
-                                    return (
-                                      <button key={st.id} onClick={()=>togSt(id,st.id)}
-                                        style={{padding:"10px 12px",borderRadius:12,border:`1.5px solid ${ck?AC:"#E5E5EA"}`,cursor:"pointer",background:ck?AC2:"#fff",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF,transition:"all 0.15s"}}>
-                                        <div style={{width:24,height:24,borderRadius:7,background:ck?AC:"#E5E5EA",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
-                                          {ck&&<span style={{color:"#fff",fontSize:14,fontWeight:900,lineHeight:1}}>✓</span>}
-                                        </div>
-                                        <span style={{fontSize:13,fontWeight:ck?700:500,color:ck?AC:"#3C3C43"}}>{st.e} {st.label}</span>
-                                      </button>
-                                    );
-                                  })}
+                                  {STEPS.map(st=>{const ck=t.steps?.[st.id];return(<button key={st.id} onClick={()=>togSt(id,st.id)} style={{padding:"10px 12px",borderRadius:12,border:`1.5px solid ${ck?AC:"#E5E5EA"}`,cursor:"pointer",background:ck?AC2:"#fff",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:FF}}><div style={{width:24,height:24,borderRadius:7,background:ck?AC:"#E5E5EA",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{ck&&<span style={{color:"#fff",fontSize:14,fontWeight:900,lineHeight:1}}>✓</span>}</div><span style={{fontSize:13,fontWeight:ck?700:500,color:ck?AC:"#3C3C43"}}>{st.e} {st.label}</span></button>);})}
                                 </div>
                               </div>
-
-                              {/* MATERIALS */}
                               <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:"14px",border:`1px solid rgba(232,112,44,0.15)`,boxShadow:"0 2px 8px rgba(232,112,44,0.08)"}}>
                                 <div style={{fontSize:10,fontWeight:700,color:AC,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>Қосымша материалдар</div>
-                                {MATS.map(mc=>{
-                                  const ml=t.materials?.[mc.id]||[];
-                                  const isA=addMat?.id===id&&addMat?.cat===mc.id;
-                                  return (
-                                    <div key={mc.id} style={{marginBottom:12}}>
-                                      <div style={{fontSize:12,fontWeight:600,color:"#3C3C43",marginBottom:6}}>{mc.e} {mc.label}</div>
-                                      {ml.map((m,i)=>(
-                                        <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"#F8F8F8",borderRadius:10,padding:"8px 10px",marginBottom:5,border:"1px solid #F0F0F0"}}>
-                                          <a href={m.url} target="_blank" rel="noreferrer" style={{flex:1,fontSize:12,color:AC,textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500}}>🔗 {m.lbl}</a>
-                                          <button onClick={()=>delM(id,mc.id,i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#FF3B30",padding:"0 2px",flexShrink:0}}>✕</button>
-                                        </div>
-                                      ))}
-                                      {isA?(
-                                        <div style={{background:"#fff",borderRadius:12,padding:10,border:"1px solid #E5E5EA"}}>
-                                          <input placeholder="Сілтеме (URL)" value={mUrl} onChange={e=>setMUrl(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #E5E5EA",fontSize:12,marginBottom:5,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
-                                          <input placeholder="Атауы (міндетті емес)" value={mLbl} onChange={e=>setMlbl(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #E5E5EA",fontSize:12,marginBottom:8,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
-                                          <div style={{display:"flex",gap:6}}>
-                                            <button onClick={()=>{if(mUrl.trim()){addM(id,mc.id,mUrl.trim(),mLbl.trim());setMUrl("");setMlbl("");setAddMat(null);}}} style={{flex:1,padding:8,borderRadius:8,border:"none",background:AC,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:FF}}>Қосу</button>
-                                            <button onClick={()=>{setAddMat(null);setMUrl("");setMlbl("");}} style={{flex:1,padding:8,borderRadius:8,border:"none",background:"#E5E5EA",color:"#3C3C43",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:FF}}>Бас тарту</button>
-                                          </div>
-                                        </div>
-                                      ):(
-                                        <button onClick={()=>{setAddMat({id,cat:mc.id});setMUrl("");setMlbl("");}} style={{padding:"7px 14px",borderRadius:10,border:`1.5px dashed ${AC}`,background:"transparent",color:AC,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:FF}}>+ Материал қос</button>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                {MATS.map(mc=>{const ml=t.materials?.[mc.id]||[];const isA=addMat?.id===id&&addMat?.cat===mc.id;return(<div key={mc.id} style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:600,color:"#3C3C43",marginBottom:6}}>{mc.e} {mc.label}</div>{ml.map((m,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"#F8F8F8",borderRadius:10,padding:"8px 10px",marginBottom:5}}><a href={m.url} target="_blank" rel="noreferrer" style={{flex:1,fontSize:12,color:AC,textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500}}>🔗 {m.lbl}</a><button onClick={()=>delM(id,mc.id,i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#FF3B30",padding:"0 2px",flexShrink:0}}>✕</button></div>))}{isA?(<div style={{background:"#fff",borderRadius:12,padding:10,border:"1px solid #E5E5EA"}}><input placeholder="Сілтеме (URL)" value={mUrl} onChange={e=>setMUrl(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #E5E5EA",fontSize:12,marginBottom:5,boxSizing:"border-box",outline:"none",fontFamily:FF}}/><input placeholder="Атауы (міндетті емес)" value={mLbl} onChange={e=>setMlbl(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #E5E5EA",fontSize:12,marginBottom:8,boxSizing:"border-box",outline:"none",fontFamily:FF}}/><div style={{display:"flex",gap:6}}><button onClick={()=>{if(mUrl.trim()){addM(id,mc.id,mUrl.trim(),mLbl.trim());setMUrl("");setMlbl("");setAddMat(null);}}} style={{flex:1,padding:8,borderRadius:8,border:"none",background:AC,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:FF}}>Қосу</button><button onClick={()=>{setAddMat(null);setMUrl("");setMlbl("");}} style={{flex:1,padding:8,borderRadius:8,border:"none",background:"#E5E5EA",color:"#3C3C43",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:FF}}>Бас тарту</button></div></div>):(<button onClick={()=>{setAddMat({id,cat:mc.id});setMUrl("");setMlbl("");}} style={{padding:"7px 14px",borderRadius:10,border:`1.5px dashed ${AC}`,background:"transparent",color:AC,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:FF}}>+ Материал қос</button>)}</div>);})}
                               </div>
                             </div>
                           )}
@@ -327,80 +552,41 @@ export default function App(){
           );
         })}
 
-        {/* ── МЕНІҢ МАТЕРИАЛДАРЫМ ── */}
-        <div style={{marginTop:20}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingLeft:4}}>
-            <div style={{width:36,height:36,borderRadius:12,background:AC,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:`0 4px 12px rgba(232,112,44,0.3)`}}>📚</div>
-            <div>
-              <div style={{fontSize:17,fontWeight:800,color:"#1C1C1E",letterSpacing:-0.3}}>Менің материалдарым</div>
-              <div style={{fontSize:11,color:"#8E8E93"}}>Жеке кітапхана — сілтемелер мен ресурстар</div>
+        {/* ── МЕНІҢ МАТЕРИАЛДАРЫМ (collapsible) ── */}
+        <div style={{marginTop:14}}>
+          <SectionHeader title="Менің материалдарым" icon="📚"
+            sub="Жеке кітапхана — сілтемелер мен ресурстар"
+            open={showMyMats} onToggle={()=>setShowMyMats(v=>!v)}/>
+          {showMyMats&&(
+            <div style={{background:"#F8F8F8",borderRadius:"0 0 18px 18px",padding:"14px",boxShadow:"0 4px 14px rgba(0,0,0,0.07)",display:"flex",flexDirection:"column",gap:10}}>
+              {MY_CATS.map(cat=>{
+                const items=myMats[cat.id]||[];
+                const isA=addMyMat===cat.id;
+                return(
+                  <div key={cat.id} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+                    <div style={{background:cat.bg,padding:"14px 16px",borderBottom:`2px solid ${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:22}}>{cat.e}</span>
+                        <div><div style={{fontSize:14,fontWeight:700,color:cat.color}}>{cat.label}</div><div style={{fontSize:11,color:"#8E8E93"}}>{items.length} материал</div></div>
+                      </div>
+                      <button onClick={()=>setAddMyMat(isA?null:cat.id)} style={{width:32,height:32,borderRadius:10,background:cat.color,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20,fontWeight:300,lineHeight:1}}>{isA?"✕":"+"}</button>
+                    </div>
+                    {isA&&(<div style={{padding:"12px 16px",background:"#FAFAFA",borderBottom:"1px solid #F0F0F0"}}><input placeholder="Сілтеме (URL)" value={myUrl} onChange={e=>setMyUrl(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1.5px solid ${cat.color}44`,fontSize:13,marginBottom:6,boxSizing:"border-box",outline:"none",fontFamily:FF}}/><input placeholder="Атауы" value={myLbl} onChange={e=>setMyLbl(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1.5px solid ${cat.color}44`,fontSize:13,marginBottom:10,boxSizing:"border-box",outline:"none",fontFamily:FF}}/><button onClick={()=>{if(myUrl.trim()){addMyM(cat.id,myUrl.trim(),myLbl.trim());setMyUrl("");setMyLbl("");setAddMyMat(null);}}} style={{width:"100%",padding:"10px",borderRadius:10,border:"none",background:cat.color,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:FF}}>Сақтау</button></div>)}
+                    <div style={{padding:"10px 12px",display:"flex",flexDirection:"column",gap:6}}>
+                      {items.length===0?(<div style={{padding:"12px 4px",textAlign:"center",color:"#C7C7CC",fontSize:13}}>Әзірге материал жоқ</div>):items.map((m,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,background:cat.bg,borderRadius:12,padding:"10px 12px",border:`1px solid ${cat.color}22`}}><span style={{fontSize:16,flexShrink:0}}>{cat.e}</span><a href={m.url} target="_blank" rel="noreferrer" style={{flex:1,fontSize:13,color:cat.color,textDecoration:"none",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.lbl}</a><button onClick={()=>delMyM(cat.id,i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#FF3B30",padding:"0 2px",flexShrink:0}}>✕</button></div>))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {MY_CATS.map(cat=>{
-              const items=myMats[cat.id]||[];
-              const isA=addMyMat===cat.id;
-              return (
-                <div key={cat.id} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.07)"}}>
-                  {/* CAT HEADER */}
-                  <div style={{background:cat.bg,padding:"14px 16px",borderBottom:`2px solid ${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{fontSize:22}}>{cat.e}</span>
-                      <div>
-                        <div style={{fontSize:14,fontWeight:700,color:cat.color}}>{cat.label}</div>
-                        <div style={{fontSize:11,color:"#8E8E93"}}>{items.length} материал</div>
-                      </div>
-                    </div>
-                    <button onClick={()=>setAddMyMat(isA?null:cat.id)}
-                      style={{width:32,height:32,borderRadius:10,background:cat.color,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20,fontWeight:300,lineHeight:1,boxShadow:`0 3px 8px ${cat.color}44`}}>
-                      {isA?"✕":"+"}
-                    </button>
-                  </div>
-
-                  {/* ADD FORM */}
-                  {isA&&(
-                    <div style={{padding:"12px 16px",background:"#FAFAFA",borderBottom:"1px solid #F0F0F0"}}>
-                      <input placeholder="Сілтеме (URL)" value={myUrl} onChange={e=>setMyUrl(e.target.value)}
-                        style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1.5px solid ${cat.color}44`,fontSize:13,marginBottom:6,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
-                      <input placeholder="Атауы" value={myLbl} onChange={e=>setMyLbl(e.target.value)}
-                        style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1.5px solid ${cat.color}44`,fontSize:13,marginBottom:10,boxSizing:"border-box",outline:"none",fontFamily:FF}}/>
-                      <button onClick={()=>{if(myUrl.trim()){addMyM(cat.id,myUrl.trim(),myLbl.trim());setMyUrl("");setMyLbl("");setAddMyMat(null);}}}
-                        style={{width:"100%",padding:"10px",borderRadius:10,border:"none",background:cat.color,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:FF}}>
-                        Сақтау
-                      </button>
-                    </div>
-                  )}
-
-                  {/* ITEMS */}
-                  <div style={{padding:"10px 12px",display:"flex",flexDirection:"column",gap:6}}>
-                    {items.length===0?(
-                      <div style={{padding:"12px 4px",textAlign:"center",color:"#C7C7CC",fontSize:13}}>Әзірге материал жоқ</div>
-                    ):items.map((m,i)=>(
-                      <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:cat.bg,borderRadius:12,padding:"10px 12px",border:`1px solid ${cat.color}22`}}>
-                        <span style={{fontSize:16,flexShrink:0}}>{cat.e}</span>
-                        <a href={m.url} target="_blank" rel="noreferrer"
-                          style={{flex:1,fontSize:13,color:cat.color,textDecoration:"none",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                          {m.lbl}
-                        </a>
-                        <button onClick={()=>delMyM(cat.id,i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#FF3B30",padding:"0 2px",flexShrink:0}}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          )}
         </div>
 
         {/* FOOTER */}
         <div style={{marginTop:20,background:"#1C1C1E",borderRadius:20,padding:"18px 18px 20px",boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
             <div style={{width:46,height:46,borderRadius:14,background:AC,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>👨‍🏫</div>
-            <div>
-              <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>Ардақ Райханов</div>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>JUZ40 · Дүниежүзі тарихы мұғалімі</div>
-            </div>
+            <div><div style={{fontSize:15,fontWeight:700,color:"#fff"}}>Ардақ Райханов</div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>JUZ40 · Дүниежүзі тарихы мұғалімі</div></div>
           </div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginBottom:12,lineHeight:1.6}}>Барлық сұрақтар бойынша мұғаліммен тікелей байланыса аласыз:</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
